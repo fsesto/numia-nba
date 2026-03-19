@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(py -3 -c \":*)",
+      "Bash(py -3 02_nba_engine.py)",
+      "Bash(py -3 -c \"import streamlit; print\\(''streamlit ok''\\)\")",
+      "Bash(py -3 -c \"import fastapi; print\\(''fastapi ok''\\)\")",
+      "Bash(py -3 -c \"import pandas; print\\(''pandas ok''\\)\")",
+      "Bash(py -3 -c \"import fastapi, uvicorn, pandas; print\\(''OK''\\)\")",
+      "Bash(py -3 -m pip install fastapi uvicorn python-multipart)",
+      "Bash(git --version)",
+      "Bash(npm --version)"
+    ]
+  }
+}
