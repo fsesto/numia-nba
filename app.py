@@ -75,10 +75,9 @@ async def upload(file: UploadFile = File(...)):
     """Acepta CSV de cualquier tamaño. Usa pandas para performance."""
     t0 = time.time()
     log.info("UPLOAD inicio — leyendo archivo...")
-    content = await file.read()
-    file_mb = len(content) / (1024 * 1024)
-    log.info("UPLOAD archivo recibido: %.1f MB (%.1f seg)", file_mb, time.time() - t0)
 
+    # Leer solo las primeras N filas en streaming, nunca el archivo completo
+    MAX_ROWS = 300_000
     COLS_NEEDED = [
         "action_text", "queue_name", "branch_name", "turn_id",
         "wait_time", "attention_time", "action_time",
@@ -86,12 +85,31 @@ async def upload(file: UploadFile = File(...)):
     ]
 
     try:
-        t1 = time.time()
-        header = pd.read_csv(io.BytesIO(content), nrows=0)
+        # Paso 1: leer header para detectar columnas
+        first_chunk = b""
+        async for chunk in file:
+            first_chunk += chunk
+            if len(first_chunk) > 4096:
+                break
+        # Rebobinar
+        await file.seek(0)
+        header = pd.read_csv(io.BytesIO(first_chunk), nrows=0)
         usecols = [c for c in COLS_NEEDED if c in header.columns]
-        log.info("UPLOAD parseando CSV con %d columnas...", len(usecols))
-        df = pd.read_csv(io.BytesIO(content), usecols=usecols, low_memory=False)
-        log.info("UPLOAD CSV parseado: %d filas en %.1f seg", len(df), time.time() - t1)
+        log.info("UPLOAD columnas detectadas: %d — leyendo max %d filas...", len(usecols), MAX_ROWS)
+
+        # Paso 2: leer solo MAX_ROWS filas con nrows (no carga todo a RAM)
+        content_stream = await file.read()
+        file_mb = len(content_stream) / (1024 * 1024)
+        log.info("UPLOAD archivo: %.1f MB (%.1f seg)", file_mb, time.time() - t0)
+
+        t1 = time.time()
+        df = pd.read_csv(
+            io.BytesIO(content_stream),
+            usecols=usecols,
+            nrows=MAX_ROWS,
+            low_memory=False,
+        )
+        log.info("UPLOAD parseado: %d filas en %.1f seg", len(df), time.time() - t1)
     except Exception as e:
         raise HTTPException(400, f"Error leyendo CSV: {e}")
 
@@ -100,13 +118,8 @@ async def upload(file: UploadFile = File(...)):
         missing = required - set(df.columns)
         raise HTTPException(400, f"Columnas faltantes: {', '.join(missing)}")
 
-    MAX_ROWS = 200_000
-    total_rows_original = len(df)
-    sampled = False
-    if len(df) > MAX_ROWS:
-        log.info("UPLOAD sampleando %d -> %d filas...", len(df), MAX_ROWS)
-        df = df.sample(n=MAX_ROWS, random_state=42)
-        sampled = True
+    total_rows_original = df.shape[0]
+    sampled = file_mb > 50  # si el archivo es grande, asumimos que hay mas filas
 
     t2 = time.time()
     llamadas = df[df["action_text"].isin(LLAMADA)].copy()
