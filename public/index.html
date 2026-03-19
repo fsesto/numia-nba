@@ -90,56 +90,69 @@ const LLAMADA_SET=new Set(['LLAMADA','LLAMADA AUTOMATICA','LLAMADA MANUAL','LLAM
 const FIN_SET=new Set(['TIPIFICADO Y FINALIZADO','FINALIZACION','FINALIZACION AUTOMATICA','TIPIFICADO Y DERIVADO','TIPIFICADO']);
 
 function parseCSVLocal(file,onProgress){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onerror=()=>reject(new Error('Error leyendo archivo'));
-    reader.onload=e=>{
-      try{
-        onProgress('Parseando CSV en el navegador...');
-        const text=e.target.result;
+  return new Promise(async(resolve,reject)=>{
+    try{
+      const MAX=300000;
+      const CHUNK=8*1024*1024; // 8MB chunks
+      const decoder=new TextDecoder('utf-8');
+      let headers=null,idx={};
+      let leftover='';
+      let rowCount=0;
+
+      const qWaits={},qAttn={},qCounts={};
+      const hourly=new Array(24).fill(0);
+      let emailCount=0,apptCount=0,callCount=0;
+      const samples=[];
+      const queueSet=new Set(),branchSet=new Set();
+
+      onProgress('Leyendo archivo en streaming...');
+
+      const stream=file.stream();
+      const reader=stream.getReader();
+      let done=false;
+
+      while(!done&&rowCount<MAX){
+        const{value,done:d}=await reader.read();
+        done=d;
+        if(!value&&done)break;
+
+        const text=leftover+decoder.decode(value,{stream:!done});
         const lines=text.split('\n');
-        const headerLine=lines[0];
-        const headers=headerLine.split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+        leftover=done?'':lines.pop(); // ultimo trozo incompleto
 
-        const idx={};
-        ['action_text','queue_name','branch_name','turn_id','wait_time','attention_time','action_time','turn_email','appointment_code'].forEach(col=>{
-          idx[col]=headers.indexOf(col);
-        });
+        for(let i=0;i<lines.length&&rowCount<MAX;i++){
+          const line=lines[i];
+          if(!line||!line.trim())continue;
 
-        if(idx.action_text<0||idx.queue_name<0){reject(new Error('Columnas action_text o queue_name no encontradas'));return}
+          // Primera linea = headers
+          if(!headers){
+            headers=line.split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+            ['action_text','queue_name','branch_name','turn_id','wait_time','attention_time','action_time','turn_email','appointment_code'].forEach(col=>{idx[col]=headers.indexOf(col)});
+            if(idx.action_text<0||idx.queue_name<0){reject(new Error('Columnas action_text o queue_name no encontradas'));reader.cancel();return}
+            continue;
+          }
 
-        const MAX=300000;
-        const limit=Math.min(lines.length,MAX+1);
-        const qWaits={},qAttn={},qCounts={};
-        const hourly=new Array(24).fill(0);
-        let emailCount=0,apptCount=0,callCount=0;
-        const samples=[];
-        const queueSet=new Set(),branchSet=new Set();
+          rowCount++;
+          if(rowCount%100000===0)onProgress(`Procesando fila ${rowCount.toLocaleString()}...`);
 
-        onProgress(`Analizando ${Math.min(lines.length-1,MAX).toLocaleString()} filas...`);
-
-        for(let i=1;i<limit;i++){
-          if(i%50000===0)onProgress(`Procesando fila ${i.toLocaleString()}...`);
-          const line=lines[i];if(!line||!line.trim())continue;
-
-          // Parse CSV line (handle quoted fields with commas)
+          // Parse CSV line
           const vals=[];let cur='',inQ=false;
           for(let j=0;j<line.length;j++){
             const ch=line[j];
-            if(ch==='"'){inQ=!inQ}
-            else if(ch===','&&!inQ){vals.push(cur.trim());cur=''}
-            else{cur+=ch}
+            if(ch==='"')inQ=!inQ;
+            else if(ch===','&&!inQ){vals.push(cur);cur=''}
+            else cur+=ch;
           }
-          vals.push(cur.trim());
+          vals.push(cur);
 
-          const action=vals[idx.action_text]||'';
-          const queue=vals[idx.queue_name]||'';
-          const branch=idx.branch_name>=0?vals[idx.branch_name]||'':'';
+          const action=(vals[idx.action_text]||'').trim();
+          const queue=(vals[idx.queue_name]||'').trim();
+          const branch=idx.branch_name>=0?(vals[idx.branch_name]||'').trim():'';
           const wt=idx.wait_time>=0?parseFloat(vals[idx.wait_time]):NaN;
           const at=idx.attention_time>=0?parseFloat(vals[idx.attention_time]):NaN;
-          const email=idx.turn_email>=0?vals[idx.turn_email]||'':'';
-          const appt=idx.appointment_code>=0?vals[idx.appointment_code]||'':'';
-          const actionTime=idx.action_time>=0?vals[idx.action_time]||'':'';
+          const email=idx.turn_email>=0?(vals[idx.turn_email]||'').trim():'';
+          const appt=idx.appointment_code>=0?(vals[idx.appointment_code]||'').trim():'';
+          const actionTime=idx.action_time>=0?(vals[idx.action_time]||'').trim():'';
 
           if(queue)queueSet.add(queue);
           if(branch)branchSet.add(branch);
@@ -154,12 +167,10 @@ function parseCSVLocal(file,onProgress){
               if(!qWaits[queue])qWaits[queue]=[];
               qWaits[queue].push(wt);
             }
-            // hourly
             try{const h=parseInt(actionTime.split(' ')[1]?.split(':')[0]);if(h>=0&&h<24)hourly[h]++}catch{}
-            // sample
             if(samples.length<80&&!isNaN(wt)){
               let hr=10;try{hr=parseInt(actionTime.split(' ')[1]?.split(':')[0])||10}catch{}
-              samples.push({turn_id:vals[idx.turn_id]||'',queue_name:queue,branch_name:branch,wait_time_seconds:wt,turn_email:email||null,hour:hr});
+              samples.push({turn_id:(vals[idx.turn_id]||'').trim(),queue_name:queue,branch_name:branch,wait_time_seconds:wt,turn_email:email||null,hour:hr});
             }
           }
           if(FIN_SET.has(action)&&!isNaN(at)&&at>=0){
@@ -167,41 +178,39 @@ function parseCSVLocal(file,onProgress){
             qAttn[queue].push(at);
           }
         }
+      }
+      reader.cancel();
 
-        if(callCount===0){reject(new Error('No se encontraron filas de LLAMADA'));return}
+      if(callCount===0){reject(new Error('No se encontraron filas de LLAMADA'));return}
 
-        onProgress('Calculando estadisticas...');
-        const qStats=Object.entries(qCounts).map(([q,cnt])=>{
-          const w=qWaits[q]||[];const a=qAttn[q]||[];
-          return{queue_name:q,turnos:cnt,
-            espera_prom_min:w.length?Math.round(w.reduce((s,v)=>s+v,0)/w.length/60*10)/10:null,
-            atencion_prom_min:a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length/60*10)/10:null};
-        }).sort((a,b)=>b.turnos-a.turnos);
+      onProgress('Calculando estadisticas...');
+      const qStats=Object.entries(qCounts).map(([q,cnt])=>{
+        const w=qWaits[q]||[];const a=qAttn[q]||[];
+        return{queue_name:q,turnos:cnt,
+          espera_prom_min:w.length?Math.round(w.reduce((s,v)=>s+v,0)/w.length/60*10)/10:null,
+          atencion_prom_min:a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length/60*10)/10:null};
+      }).sort((a,b)=>b.turnos-a.turnos);
 
-        const allW=Object.values(qWaits).flat().sort((a,b)=>a-b);
-        const pct=(arr,p)=>{if(!arr.length)return 0;const i=(p/100)*(arr.length-1);const lo=Math.floor(i);const hi=Math.min(lo+1,arr.length-1);return arr[lo]+(i-lo)*(arr[hi]-arr[lo])};
-        const p75=allW.length?Math.round(pct(allW,75)/60*10)/10:16;
-        const p90=allW.length?Math.round(pct(allW,90)/60*10)/10:33;
+      const allW=Object.values(qWaits).flat().sort((a,b)=>a-b);
+      const pct=(arr,p)=>{if(!arr.length)return 0;const i=(p/100)*(arr.length-1);const lo=Math.floor(i);const hi=Math.min(lo+1,arr.length-1);return arr[lo]+(i-lo)*(arr[hi]-arr[lo])};
+      const p75=allW.length?Math.round(pct(allW,75)/60*10)/10:16;
+      const p90=allW.length?Math.round(pct(allW,90)/60*10)/10:33;
 
-        resolve({
-          total_llamadas:callCount,
-          total_rows_original:lines.length-1,
-          sampled:lines.length-1>MAX,
-          sample_pct:lines.length-1>MAX?Math.round(MAX*100/(lines.length-1)*10)/10:100,
-          file_mb:Math.round(file.size/1024/1024*10)/10,
-          queues:queueSet.size,
-          branches:branchSet.size,
-          email_coverage_pct:Math.round(emailCount*1000/callCount)/10,
-          appointment_coverage_pct:Math.round(apptCount*1000/callCount)/10,
-          espera_p75_min:p75,espera_p90_min:p90,
-          hourly,queue_stats:qStats.slice(0,25),sample_turns:samples,
-          queues_list:[...queueSet].sort(),branches_list:[...branchSet].sort(),
-          processing_seconds:0,
-        });
-      }catch(err){reject(err)}
-    };
-    onProgress('Leyendo archivo...');
-    reader.readAsText(file);
+      resolve({
+        total_llamadas:callCount,
+        total_rows_original:rowCount,
+        sampled:rowCount>=MAX,
+        sample_pct:rowCount>=MAX?'max 300k':100,
+        file_mb:Math.round(file.size/1024/1024*10)/10,
+        queues:queueSet.size,branches:branchSet.size,
+        email_coverage_pct:Math.round(emailCount*1000/callCount)/10,
+        appointment_coverage_pct:Math.round(apptCount*1000/callCount)/10,
+        espera_p75_min:p75,espera_p90_min:p90,
+        hourly,queue_stats:qStats.slice(0,25),sample_turns:samples,
+        queues_list:[...queueSet].sort(),branches_list:[...branchSet].sort(),
+        processing_seconds:0,
+      });
+    }catch(err){reject(err)}
   });
 }
 
