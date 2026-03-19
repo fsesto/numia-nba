@@ -86,8 +86,126 @@ const SCENARIOS=[
   {title:'Oportunidad comercial',desc:'Venta de Productos + 5 min',queue:'Venta de Productos',wait:5,hour:10,nps:'4.2',npsLow:0,visitas:3,dias:'30'},
   {title:'Hora pico, recurrente',desc:'Caja + 20 min + 8 visitas',queue:'Caja',wait:20,hour:16,nps:'3.5',npsLow:0,visitas:8,dias:'3'},
 ];
+const LLAMADA_SET=new Set(['LLAMADA','LLAMADA AUTOMATICA','LLAMADA MANUAL','LLAMADO DIRECTO']);
+const FIN_SET=new Set(['TIPIFICADO Y FINALIZADO','FINALIZACION','FINALIZACION AUTOMATICA','TIPIFICADO Y DERIVADO','TIPIFICADO']);
+
+function parseCSVLocal(file,onProgress){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('Error leyendo archivo'));
+    reader.onload=e=>{
+      try{
+        onProgress('Parseando CSV en el navegador...');
+        const text=e.target.result;
+        const lines=text.split('\n');
+        const headerLine=lines[0];
+        const headers=headerLine.split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+
+        const idx={};
+        ['action_text','queue_name','branch_name','turn_id','wait_time','attention_time','action_time','turn_email','appointment_code'].forEach(col=>{
+          idx[col]=headers.indexOf(col);
+        });
+
+        if(idx.action_text<0||idx.queue_name<0){reject(new Error('Columnas action_text o queue_name no encontradas'));return}
+
+        const MAX=300000;
+        const limit=Math.min(lines.length,MAX+1);
+        const qWaits={},qAttn={},qCounts={};
+        const hourly=new Array(24).fill(0);
+        let emailCount=0,apptCount=0,callCount=0;
+        const samples=[];
+        const queueSet=new Set(),branchSet=new Set();
+
+        onProgress(`Analizando ${Math.min(lines.length-1,MAX).toLocaleString()} filas...`);
+
+        for(let i=1;i<limit;i++){
+          if(i%50000===0)onProgress(`Procesando fila ${i.toLocaleString()}...`);
+          const line=lines[i];if(!line||!line.trim())continue;
+
+          // Parse CSV line (handle quoted fields with commas)
+          const vals=[];let cur='',inQ=false;
+          for(let j=0;j<line.length;j++){
+            const ch=line[j];
+            if(ch==='"'){inQ=!inQ}
+            else if(ch===','&&!inQ){vals.push(cur.trim());cur=''}
+            else{cur+=ch}
+          }
+          vals.push(cur.trim());
+
+          const action=vals[idx.action_text]||'';
+          const queue=vals[idx.queue_name]||'';
+          const branch=idx.branch_name>=0?vals[idx.branch_name]||'':'';
+          const wt=idx.wait_time>=0?parseFloat(vals[idx.wait_time]):NaN;
+          const at=idx.attention_time>=0?parseFloat(vals[idx.attention_time]):NaN;
+          const email=idx.turn_email>=0?vals[idx.turn_email]||'':'';
+          const appt=idx.appointment_code>=0?vals[idx.appointment_code]||'':'';
+          const actionTime=idx.action_time>=0?vals[idx.action_time]||'':'';
+
+          if(queue)queueSet.add(queue);
+          if(branch)branchSet.add(branch);
+
+          if(LLAMADA_SET.has(action)){
+            callCount++;
+            if(email)emailCount++;
+            if(appt)apptCount++;
+            if(!qCounts[queue])qCounts[queue]=0;
+            qCounts[queue]++;
+            if(!isNaN(wt)&&wt>=0){
+              if(!qWaits[queue])qWaits[queue]=[];
+              qWaits[queue].push(wt);
+            }
+            // hourly
+            try{const h=parseInt(actionTime.split(' ')[1]?.split(':')[0]);if(h>=0&&h<24)hourly[h]++}catch{}
+            // sample
+            if(samples.length<80&&!isNaN(wt)){
+              let hr=10;try{hr=parseInt(actionTime.split(' ')[1]?.split(':')[0])||10}catch{}
+              samples.push({turn_id:vals[idx.turn_id]||'',queue_name:queue,branch_name:branch,wait_time_seconds:wt,turn_email:email||null,hour:hr});
+            }
+          }
+          if(FIN_SET.has(action)&&!isNaN(at)&&at>=0){
+            if(!qAttn[queue])qAttn[queue]=[];
+            qAttn[queue].push(at);
+          }
+        }
+
+        if(callCount===0){reject(new Error('No se encontraron filas de LLAMADA'));return}
+
+        onProgress('Calculando estadisticas...');
+        const qStats=Object.entries(qCounts).map(([q,cnt])=>{
+          const w=qWaits[q]||[];const a=qAttn[q]||[];
+          return{queue_name:q,turnos:cnt,
+            espera_prom_min:w.length?Math.round(w.reduce((s,v)=>s+v,0)/w.length/60*10)/10:null,
+            atencion_prom_min:a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length/60*10)/10:null};
+        }).sort((a,b)=>b.turnos-a.turnos);
+
+        const allW=Object.values(qWaits).flat().sort((a,b)=>a-b);
+        const pct=(arr,p)=>{if(!arr.length)return 0;const i=(p/100)*(arr.length-1);const lo=Math.floor(i);const hi=Math.min(lo+1,arr.length-1);return arr[lo]+(i-lo)*(arr[hi]-arr[lo])};
+        const p75=allW.length?Math.round(pct(allW,75)/60*10)/10:16;
+        const p90=allW.length?Math.round(pct(allW,90)/60*10)/10:33;
+
+        resolve({
+          total_llamadas:callCount,
+          total_rows_original:lines.length-1,
+          sampled:lines.length-1>MAX,
+          sample_pct:lines.length-1>MAX?Math.round(MAX*100/(lines.length-1)*10)/10:100,
+          file_mb:Math.round(file.size/1024/1024*10)/10,
+          queues:queueSet.size,
+          branches:branchSet.size,
+          email_coverage_pct:Math.round(emailCount*1000/callCount)/10,
+          appointment_coverage_pct:Math.round(apptCount*1000/callCount)/10,
+          espera_p75_min:p75,espera_p90_min:p90,
+          hourly,queue_stats:qStats.slice(0,25),sample_turns:samples,
+          queues_list:[...queueSet].sort(),branches_list:[...branchSet].sort(),
+          processing_seconds:0,
+        });
+      }catch(err){reject(err)}
+    };
+    onProgress('Leyendo archivo...');
+    reader.readAsText(file);
+  });
+}
+
 const api={
-  upload:async f=>{const fd=new FormData();fd.append('file',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.detail||r.statusText)}return r.json()},
   suggest:async b=>{const r=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.detail||r.statusText)}return r.json()},
   sectors:async()=>{try{const r=await fetch('/api/sectors');return r.ok?r.json():null}catch{return null}},
 };
@@ -107,7 +225,7 @@ const Step1=({onNext})=>{
   useEffect(()=>{if(sectors&&sectors[sec])setProc(sectors[sec].sample_processes||'')},[sec]);
   const[status,setStatus]=useState('');
   const pick=f=>{if(f?.name.endsWith('.csv')){setFile(f);setErr('')}else setErr('Solo .csv')};
-  const go=async()=>{setLoading(true);setErr('');setStatus('');const ctx={company_name:co,sector:sec,process_descriptions:proc};if(file){try{setStatus('Subiendo archivo ('+((file.size/1024/1024).toFixed(0))+' MB)...');const d=await api.upload(file);setStatus('Procesado en '+d.processing_seconds+'s');onNext({ctx,csv:d})}catch(e){setErr(e.message);setLoading(false);setStatus('')}}else onNext({ctx,csv:null})};
+  const go=async()=>{setLoading(true);setErr('');setStatus('');const ctx={company_name:co,sector:sec,process_descriptions:proc};if(file){try{const t0=Date.now();const d=await parseCSVLocal(file,msg=>setStatus(msg));d.processing_seconds=Math.round((Date.now()-t0)/100)/10;setStatus('Listo en '+d.processing_seconds+'s');onNext({ctx,csv:d})}catch(e){setErr(e.message);setLoading(false);setStatus('')}}else onNext({ctx,csv:null})};
   return<div className="card">
     <div className="card-t">Configura tu empresa</div><div className="card-s">Esta informacion adapta las sugerencias NBA al contexto de tu operacion.</div>
     <div className="fr"><label>Nombre de la empresa</label><input placeholder="Ej: Bancoomeva, Clinica Americas..." value={co} onChange={e=>setCo(e.target.value)}/></div>
