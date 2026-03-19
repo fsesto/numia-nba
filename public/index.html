@@ -1,782 +1,195 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Numia NBA — Simulador</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f1f5f9;
-      color: #1e293b;
-      min-height: 100vh;
-    }
-    /* ── Header ── */
-    .header {
-      background: #fff;
-      border-bottom: 1px solid #e2e8f0;
-      padding: 0 32px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .header-logo {
-      width: 32px; height: 32px;
-      background: #4f46e5;
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-weight: 800; font-size: 14px;
-    }
-    .header h1 { font-size: 16px; font-weight: 700; color: #1e293b; }
-    .header span { font-size: 13px; color: #94a3b8; margin-left: 4px; }
-
-    /* ── Layout ── */
-    .page { max-width: 900px; margin: 0 auto; padding: 32px 16px 64px; }
-
-    /* ── Step indicator ── */
-    .steps {
-      display: flex; align-items: center; margin-bottom: 36px;
-    }
-    .step-item {
-      display: flex; align-items: center; gap: 8px; flex: 1;
-    }
-    .step-circle {
-      width: 28px; height: 28px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700; flex-shrink: 0;
-      transition: all .2s;
-    }
-    .step-circle.done   { background: #4f46e5; color: white; }
-    .step-circle.active { background: #4f46e5; color: white; box-shadow: 0 0 0 4px #e0e7ff; }
-    .step-circle.idle   { background: #e2e8f0; color: #94a3b8; }
-    .step-label { font-size: 13px; font-weight: 500; color: #64748b; }
-    .step-label.active { color: #4f46e5; font-weight: 600; }
-    .step-line { flex: 1; height: 1px; background: #e2e8f0; margin: 0 8px; }
-
-    /* ── Card ── */
-    .card {
-      background: #fff;
-      border-radius: 16px;
-      padding: 28px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.07);
-    }
-    .card-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-    .card-sub   { font-size: 14px; color: #64748b; margin-bottom: 24px; }
-
-    /* ── Form elements ── */
-    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-    input[type=text], input[type=email], input[type=number], select, textarea {
-      width: 100%; padding: 10px 12px;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
-      font-size: 14px; color: #1e293b;
-      background: #f8fafc;
-      transition: border .15s;
-      outline: none;
-    }
-    input:focus, select:focus, textarea:focus { border-color: #4f46e5; background: #fff; }
-    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
-    .form-row { margin-bottom: 18px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-
-    /* ── Sector selector ── */
-    .sector-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-      margin-bottom: 18px;
-    }
-    .sector-card {
-      border: 2px solid #e2e8f0;
-      border-radius: 12px; padding: 14px 10px;
-      text-align: center; cursor: pointer;
-      transition: all .15s;
-      background: #f8fafc;
-    }
-    .sector-card:hover  { border-color: #a5b4fc; background: #f5f3ff; }
-    .sector-card.sel    { border-color: #4f46e5; background: #eef2ff; }
-    .sector-card .icon  { font-size: 22px; margin-bottom: 4px; }
-    .sector-card .name  { font-size: 12px; font-weight: 600; color: #374151; }
-
-    /* ── Upload zone ── */
-    .upload-zone {
-      border: 2px dashed #c7d2fe;
-      border-radius: 12px; padding: 28px;
-      text-align: center; cursor: pointer;
-      background: #f8fafc; transition: all .15s;
-    }
-    .upload-zone:hover  { border-color: #4f46e5; background: #eef2ff; }
-    .upload-zone.active { border-color: #4f46e5; background: #eef2ff; }
-    .upload-zone .icon  { font-size: 28px; margin-bottom: 8px; }
-    .upload-zone p      { font-size: 14px; color: #64748b; }
-    .upload-zone strong { color: #4f46e5; }
-    .upload-success {
-      display: flex; align-items: center; gap: 10px;
-      background: #f0fdf4; border: 1.5px solid #bbf7d0;
-      border-radius: 10px; padding: 12px 16px;
-      font-size: 13px; color: #166534;
-    }
-
-    /* ── Buttons ── */
-    .btn {
-      padding: 11px 24px; border-radius: 10px;
-      font-size: 14px; font-weight: 600; cursor: pointer;
-      border: none; transition: all .15s;
-    }
-    .btn-primary { background: #4f46e5; color: white; }
-    .btn-primary:hover { background: #4338ca; }
-    .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
-    .btn-secondary { background: #f1f5f9; color: #374151; border: 1.5px solid #e2e8f0; }
-    .btn-secondary:hover { background: #e2e8f0; }
-    .btn-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
-
-    /* ── Stat cards ── */
-    .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
-    .stat-card {
-      background: #f8fafc; border: 1.5px solid #e2e8f0;
-      border-radius: 12px; padding: 16px;
-    }
-    .stat-card .val { font-size: 26px; font-weight: 800; color: #4f46e5; }
-    .stat-card .lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
-
-    /* ── Queue table ── */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 10px 12px; color: #64748b; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
-    td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; }
-    tr:hover td { background: #f8fafc; }
-    .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 99px;
-      font-size: 11px; font-weight: 600;
-    }
-
-    /* ── Simulator layout ── */
-    .sim-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
-
-    /* ── Slider ── */
-    .slider-row { margin-bottom: 18px; }
-    .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .slider-label span { font-size: 13px; font-weight: 600; color: #374151; }
-    .slider-val {
-      background: #eef2ff; color: #4f46e5;
-      padding: 2px 10px; border-radius: 99px;
-      font-size: 13px; font-weight: 700;
-    }
-    input[type=range] { width: 100%; accent-color: #4f46e5; cursor: pointer; }
-
-    /* ── Suggestion cards ── */
-    .suggestion-card {
-      border-radius: 14px; padding: 20px;
-      margin-bottom: 14px; border-left: 4px solid;
-    }
-    .suggestion-card.risk       { background: #fef2f2; border-color: #dc2626; }
-    .suggestion-card.commercial { background: #fffbeb; border-color: #d97706; }
-    .suggestion-card.service    { background: #eff6ff; border-color: #2563eb; }
-    .s-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 10px; border-radius: 99px;
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .5px; margin-bottom: 10px;
-    }
-    .s-badge.risk       { background: #fee2e2; color: #dc2626; }
-    .s-badge.commercial { background: #fef3c7; color: #d97706; }
-    .s-badge.service    { background: #dbeafe; color: #2563eb; }
-    .s-label { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
-    .s-message { font-size: 14px; color: #374151; line-height: 1.55; margin-bottom: 12px; }
-    .s-evidence { list-style: none; }
-    .s-evidence li {
-      font-size: 12px; color: #64748b;
-      padding: 3px 0 3px 14px;
-      position: relative;
-    }
-    .s-evidence li::before { content: '–'; position: absolute; left: 0; }
-
-    .empty-state {
-      text-align: center; padding: 48px 24px;
-      color: #94a3b8; font-size: 14px;
-    }
-    .empty-state .big { font-size: 36px; margin-bottom: 8px; }
-
-    /* ── Toggle section ── */
-    .toggle-header {
-      display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; padding: 4px 0; margin-bottom: 12px;
-    }
-    .toggle-title { font-size: 13px; font-weight: 700; color: #374151; }
-    .toggle-icon { font-size: 16px; color: #94a3b8; transition: transform .15s; }
-    .toggle-icon.open { transform: rotate(180deg); }
-
-    /* ── Loading ── */
-    .spinner {
-      width: 20px; height: 20px; border: 2px solid #e2e8f0;
-      border-top-color: #4f46e5; border-radius: 50%;
-      animation: spin .7s linear infinite; display: inline-block;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Responsive ── */
-    @media (max-width: 700px) {
-      .form-grid { grid-template-columns: 1fr; }
-      .sector-grid { grid-template-columns: repeat(2, 1fr); }
-      .stat-grid { grid-template-columns: 1fr 1fr; }
-      .sim-layout { grid-template-columns: 1fr; }
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Numia NBA</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><text x='8' y='23' font-size='18' fill='white' font-weight='bold'>N</text></svg>"/>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:0 32px;height:56px;display:flex;align-items:center;gap:10px;color:#fff}
+.hdr-mark{font-size:18px;font-weight:800;letter-spacing:-.5px}
+.hdr-sep{width:1px;height:22px;background:rgba(255,255,255,.3);margin:0 6px}
+.hdr-sub{font-size:13px;opacity:.85;font-weight:500}
+.page{max-width:920px;margin:0 auto;padding:28px 16px 80px}
+.steps{display:flex;align-items:center;margin-bottom:32px}
+.st{display:flex;align-items:center;gap:7px}.st-n{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:.2s}
+.st-n.on{background:#4f46e5;color:#fff;box-shadow:0 0 0 3px #e0e7ff}.st-n.done{background:#4f46e5;color:#fff}.st-n.off{background:#e2e8f0;color:#94a3b8}
+.st-l{font-size:12px;font-weight:600;color:#64748b}.st-l.on{color:#4f46e5}.st-line{flex:1;height:1px;background:#e2e8f0;margin:0 8px}
+.card{background:#fff;border-radius:14px;padding:26px;box-shadow:0 1px 4px rgba(0,0,0,.06)}.card-t{font-size:17px;font-weight:700;margin-bottom:3px}.card-s{font-size:13px;color:#64748b;margin-bottom:22px}
+label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px}
+input,select,textarea{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc;outline:none;transition:.15s;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#4f46e5;background:#fff}
+textarea{resize:vertical;min-height:80px;line-height:1.5}.fr{margin-bottom:16px}.fg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sec-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.sec-c{border:2px solid #e2e8f0;border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:.15s;background:#f8fafc}
+.sec-c:hover{border-color:#a5b4fc;background:#f5f3ff}.sec-c.on{border-color:#4f46e5;background:#eef2ff}
+.sec-c .ic{font-size:20px;margin-bottom:2px}.sec-c .nm{font-size:11px;font-weight:600;color:#374151}
+.up-zone{border:2px dashed #c7d2fe;border-radius:10px;padding:24px;text-align:center;cursor:pointer;background:#f8fafc;transition:.15s}
+.up-zone:hover,.up-zone.dr{border-color:#4f46e5;background:#eef2ff}
+.up-ok{display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534}
+.btn{padding:10px 22px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s;font-family:inherit}
+.btn-p{background:#4f46e5;color:#fff}.btn-p:hover{background:#4338ca}.btn-p:disabled{background:#a5b4fc;cursor:default}
+.btn-s{background:#f1f5f9;color:#374151;border:1.5px solid #e2e8f0}.btn-s:hover{background:#e2e8f0}
+.btn-row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.stat-g{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.stat-c{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center}
+.stat-c .v{font-size:22px;font-weight:800;color:#4f46e5}.stat-c .l{font-size:11px;color:#64748b;margin-top:2px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;color:#64748b;font-weight:600;border-bottom:2px solid #e2e8f0}
+td{padding:7px 10px;border-bottom:1px solid #f1f5f9}tr:hover td{background:#f8fafc}
+.sim{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+.console{border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden}
+.console-bar{background:#1e293b;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;font-size:12px;flex-wrap:wrap}
+.console-bar .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0}
+.console-bar .tag{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:4px;font-size:11px}
+.console-body{padding:18px;background:#fafbfc;min-height:260px}
+.sug{border-radius:12px;padding:18px;margin-bottom:12px;border-left:4px solid;animation:fadeUp .3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.sug.risk{background:#fef2f2;border-color:#dc2626}.sug.commercial{background:#fffbeb;border-color:#d97706}.sug.service{background:#eff6ff;border-color:#2563eb}
+.s-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.s-badge.risk{background:#fee2e2;color:#dc2626}.s-badge.commercial{background:#fef3c7;color:#d97706}.s-badge.service{background:#dbeafe;color:#2563eb}
+.s-title{font-size:14px;font-weight:700;margin-bottom:6px}.s-msg{font-size:13px;color:#374151;line-height:1.5;margin-bottom:10px}
+.s-ev{list-style:none}.s-ev li{font-size:11px;color:#64748b;padding:2px 0 2px 12px;position:relative}.s-ev li::before{content:'-';position:absolute;left:0}
+.conf-bar{height:3px;border-radius:3px;margin-top:10px}.conf-bar.risk{background:#fca5a5}.conf-bar.commercial{background:#fcd34d}.conf-bar.service{background:#93c5fd}
+.sc-g{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.sc-c{border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 12px;cursor:pointer;transition:.15s;background:#fff}
+.sc-c:hover{border-color:#a5b4fc;background:#f5f3ff}.sc-c .sc-t{font-size:12px;font-weight:600;color:#374151}.sc-c .sc-d{font-size:11px;color:#94a3b8;margin-top:2px}
+.sl{margin-bottom:16px}.sl-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sl-h span{font-size:12px;font-weight:600;color:#374151}
+.sl-v{background:#eef2ff;color:#4f46e5;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:700}
+input[type=range]{accent-color:#4f46e5;cursor:pointer}
+.tgl{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;margin-bottom:10px;border-top:1px solid #f1f5f9;padding-top:12px;margin-top:4px}
+.tgl-t{font-size:12px;font-weight:700;color:#374151}.tgl-i{font-size:14px;color:#94a3b8;transition:.15s}.tgl-i.open{transform:rotate(180deg)}
+.spin{width:16px;height:16px;border:2px solid #e2e8f0;border-top-color:#4f46e5;border-radius:50%;animation:sp .6s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px 20px;color:#94a3b8;font-size:13px}.empty .big{font-size:32px;margin-bottom:6px}
+.ftr{text-align:center;margin-top:40px;font-size:11px;color:#94a3b8}
+.hchart{display:flex;align-items:flex-end;gap:2px;height:48px;margin-bottom:18px}
+.hbar{flex:1;background:#c7d2fe;border-radius:2px 2px 0 0;min-height:2px;transition:.2s;position:relative}.hbar:hover{background:#4f46e5}
+.hbar .ht{display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;white-space:nowrap}.hbar:hover .ht{display:block}
+@media(max-width:700px){.fg{grid-template-columns:1fr}.sec-g{grid-template-columns:repeat(2,1fr)}.sim{grid-template-columns:1fr}.stat-g{grid-template-columns:1fr 1fr}.sc-g{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-<div id="root"></div>
-
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#94a3b8;font-size:14px"><span class="spin" style="margin-right:10px"></span>Cargando...</div></div>
 <script type="text/babel">
-const { useState, useRef, useCallback } = React;
-
-// ── Constantes ────────────────────────────────────────────────
-
-const SECTORS = [
-  { id: 'banca',    label: 'Banca',    icon: '🏦' },
-  { id: 'salud',    label: 'Salud',    icon: '🏥' },
-  { id: 'retail',   label: 'Retail',   icon: '🛍️' },
-  { id: 'gobierno', label: 'Gobierno', icon: '🏛️' },
-  { id: 'telco',    label: 'Telco',    icon: '📡' },
-  { id: 'otro',     label: 'Otro',     icon: '📋' },
+const{useState,useRef,useEffect}=React;
+const LAYER={risk:{label:'Riesgo',icon:'\u26A0\uFE0F'},commercial:{label:'Oportunidad',icon:'\uD83D\uDCA1'},service:{label:'Modo de atencion',icon:'\u2139\uFE0F'}};
+const SCENARIOS=[
+  {title:'Cliente enojado, espera larga',desc:'Reclamos + 40 min + NPS 1.5',queue:'Reclamos',wait:40,hour:11,nps:'1.5',npsLow:3,visitas:5,dias:''},
+  {title:'Primera visita, operativo',desc:'Caja + 8 min + sin historial',queue:'Caja',wait:8,hour:10,nps:'',npsLow:0,visitas:0,dias:''},
+  {title:'Oportunidad comercial',desc:'Venta de Productos + 5 min',queue:'Venta de Productos',wait:5,hour:10,nps:'4.2',npsLow:0,visitas:3,dias:'30'},
+  {title:'Hora pico, recurrente',desc:'Caja + 20 min + 8 visitas',queue:'Caja',wait:20,hour:16,nps:'3.5',npsLow:0,visitas:8,dias:'3'},
 ];
-
-const LAYER_META = {
-  risk:       { label: 'Riesgo',          icon: '⚠️' },
-  commercial: { label: 'Oportunidad',     icon: '💡' },
-  service:    { label: 'Modo de atención',icon: 'ℹ️' },
+const api={
+  upload:async f=>{const fd=new FormData();fd.append('file',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.detail||r.statusText)}return r.json()},
+  suggest:async b=>{const r=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.detail||r.statusText)}return r.json()},
+  sectors:async()=>{try{const r=await fetch('/api/sectors');return r.ok?r.json():null}catch{return null}},
 };
 
-const PROCESS_PLACEHOLDER = `Describí cada cola con su función. Ejemplo:
-Caja: depósitos, extracciones y pagos básicos
-Venta de Productos: cross-sell de productos financieros
-Reclamos: gestión de quejas y solicitudes de revisión
-Asesores Integrales: asesoría integral de productos y servicios`;
+const StepBar=({step})=>{const st=['Empresa','Datos','Simulador'];return<div className="steps">{st.map((l,i)=>{const n=i+1,s=n<step?'done':n===step?'on':'off';return<React.Fragment key={n}><div className="st"><div className={`st-n ${s}`}>{s==='done'?'\u2713':n}</div><span className={`st-l ${s==='on'?'on':''}`}>{l}</span></div>{i<st.length-1&&<div className="st-line"/>}</React.Fragment>})}</div>};
 
+const SugCard=({s})=>{const m=LAYER[s.layer]||{label:s.layer,icon:''};return<div className={`sug ${s.layer}`}><div className={`s-badge ${s.layer}`}>{m.icon} {m.label}</div><div className="s-title">{s.label}</div><div className="s-msg">{s.message}</div>{s.evidence?.filter(Boolean).length>0&&<ul className="s-ev">{s.evidence.filter(Boolean).map((e,i)=><li key={i}>{e}</li>)}</ul>}<div className={`conf-bar ${s.layer}`} style={{width:`${s.confidence*100}%`}}/></div>};
 
-// ── Componentes pequeños ──────────────────────────────────────
+const HourlyChart=({data})=>{const mx=Math.max(...data,1);return<div><label>Distribucion horaria de turnos</label><div className="hchart">{data.map((v,i)=><div key={i} className="hbar" style={{height:`${(v/mx)*100}%`}}><div className="ht">{i}:00 — {v}</div></div>)}</div></div>};
 
-const StepBar = ({ step }) => {
-  const steps = ['Empresa', 'Datos', 'Simulador'];
-  return (
-    <div className="steps">
-      {steps.map((label, i) => {
-        const n = i + 1;
-        const state = n < step ? 'done' : n === step ? 'active' : 'idle';
-        return (
-          <React.Fragment key={n}>
-            <div className="step-item">
-              <div className={`step-circle ${state}`}>
-                {state === 'done' ? '✓' : n}
-              </div>
-              <span className={`step-label ${state === 'active' ? 'active' : ''}`}>{label}</span>
-            </div>
-            {i < steps.length - 1 && <div className="step-line" />}
-          </React.Fragment>
-        );
-      })}
+const Step1=({onNext})=>{
+  const[co,setCo]=useState('');const[sec,setSec]=useState('banca');const[proc,setProc]=useState('');
+  const[file,setFile]=useState(null);const[drag,setDrag]=useState(false);const[loading,setLoading]=useState(false);const[err,setErr]=useState('');const[sectors,setSectors]=useState(null);const ref=useRef();
+  useEffect(()=>{api.sectors().then(d=>{if(d)setSectors(d)})},[]);
+  const slist=sectors?Object.entries(sectors).map(([id,s])=>({id,...s})):[{id:'banca',label:'Banca',icon:'\uD83C\uDFE6'},{id:'salud',label:'Salud',icon:'\uD83C\uDFE5'},{id:'retail',label:'Retail',icon:'\uD83D\uDECD\uFE0F'},{id:'gobierno',label:'Gobierno',icon:'\uD83C\uDFDB\uFE0F'},{id:'telco',label:'Telco',icon:'\uD83D\uDCE1'},{id:'otro',label:'Otro',icon:'\uD83D\uDCCB'}];
+  const ph=sectors?sectors[sec]?.sample_processes||'':'Caja: depositos y pagos\nVenta: cross-sell';
+  useEffect(()=>{if(sectors&&sectors[sec])setProc(sectors[sec].sample_processes||'')},[sec]);
+  const pick=f=>{if(f?.name.endsWith('.csv')){setFile(f);setErr('')}else setErr('Solo .csv')};
+  const go=async()=>{setLoading(true);setErr('');const ctx={company_name:co,sector:sec,process_descriptions:proc};if(file){try{const d=await api.upload(file);onNext({ctx,csv:d})}catch(e){setErr(e.message);setLoading(false)}}else onNext({ctx,csv:null})};
+  return<div className="card">
+    <div className="card-t">Configura tu empresa</div><div className="card-s">Esta informacion adapta las sugerencias NBA al contexto de tu operacion.</div>
+    <div className="fr"><label>Nombre de la empresa</label><input placeholder="Ej: Bancoomeva, Clinica Americas..." value={co} onChange={e=>setCo(e.target.value)}/></div>
+    <div className="fr"><label>Sector</label><div className="sec-g">{slist.map(s=><div key={s.id} className={`sec-c ${sec===s.id?'on':''}`} onClick={()=>setSec(s.id)}><div className="ic">{s.icon}</div><div className="nm">{s.label}</div></div>)}</div></div>
+    <div className="fr"><label>Procesos clave <span style={{fontWeight:400,color:'#94a3b8'}}>(mejora las sugerencias)</span></label><textarea placeholder={ph} value={proc} onChange={e=>setProc(e.target.value)} rows={4}/></div>
+    <div className="fr"><label>Archivo qmovements <span style={{fontWeight:400,color:'#94a3b8'}}>(opcional, max 4.5 MB)</span></label>
+      {file?<div className="up-ok">📄 <strong>{file.name}</strong> — {(file.size/1024/1024).toFixed(1)} MB<button className="btn btn-s" style={{marginLeft:'auto',padding:'3px 10px',fontSize:'11px'}} onClick={()=>setFile(null)}>Quitar</button></div>
+      :<div className={`up-zone ${drag?'dr':''}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);pick(e.dataTransfer.files[0])}} onClick={()=>ref.current.click()}>
+        <div style={{fontSize:'24px',marginBottom:'6px'}}>📂</div><div style={{fontSize:'13px',color:'#64748b'}}>Arrastra tu CSV o <strong style={{color:'#4f46e5'}}>hace click</strong></div></div>}
+      <input ref={ref} type="file" accept=".csv" hidden onChange={e=>pick(e.target.files[0])}/>
+      {err&&<p style={{color:'#dc2626',fontSize:'12px',marginTop:6}}>{err}</p>}</div>
+    <div className="btn-row"><button className="btn btn-p" onClick={go} disabled={loading}>{loading?<><span className="spin"/> Procesando...</>:'Continuar →'}</button></div>
+  </div>
+};
+
+const Step2=({csv:d,onNext,onBack})=><div className="card">
+  <div className="card-t">Resumen del dataset</div><div className="card-s">Umbrales calibrados con tus datos reales.</div>
+  <div className="stat-g">
+    <div className="stat-c"><div className="v">{d.total_llamadas.toLocaleString()}</div><div className="l">Llamadas</div></div>
+    <div className="stat-c"><div className="v">{d.queues}</div><div className="l">Colas</div></div>
+    <div className="stat-c"><div className="v">{d.branches}</div><div className="l">Sucursales</div></div>
+    <div className="stat-c"><div className="v" style={{color:d.email_coverage_pct>50?'#4f46e5':'#d97706'}}>{d.email_coverage_pct}%</div><div className="l">Cobertura email</div></div>
+  </div>
+  <div style={{background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:8,padding:'10px 14px',marginBottom:18,fontSize:12,color:'#166534'}}>
+    Espera elevada: <strong>{d.espera_p75_min} min (p75)</strong> | Critica: <strong>{d.espera_p90_min} min (p90)</strong></div>
+  {d.hourly&&<HourlyChart data={d.hourly}/>}
+  <div className="tw"><table><thead><tr><th>Cola</th><th>Turnos</th><th>Espera</th><th>Atencion</th></tr></thead>
+    <tbody>{d.queue_stats.slice(0,15).map((q,i)=><tr key={i}><td style={{fontWeight:500}}>{q.queue_name}</td><td>{q.turnos.toLocaleString()}</td><td>{q.espera_prom_min!=null?q.espera_prom_min+' min':'—'}</td><td>{q.atencion_prom_min!=null?q.atencion_prom_min+' min':'—'}</td></tr>)}</tbody></table></div>
+  <div className="btn-row"><button className="btn btn-s" onClick={onBack}>← Volver</button><button className="btn btn-p" onClick={onNext}>Ir al simulador →</button></div>
+</div>;
+
+const Step3=({ctx,csv,onBack})=>{
+  const qs=csv?.queues_list||[];const bs=csv?.branches_list||[];const samples=csv?.sample_turns?.slice(0,15)||[];
+  const[queue,setQueue]=useState(qs[0]||'Caja');const[branch,setBranch]=useState(bs[0]||'');
+  const[wait,setWait]=useState(10);const[hour,setHour]=useState(10);const[email,setEmail]=useState('');
+  const[showP,setShowP]=useState(false);const[visitas,setVisitas]=useState(0);const[nps,setNps]=useState('');const[npsLow,setNpsLow]=useState(0);const[dias,setDias]=useState('');
+  const[sugs,setSugs]=useState(null);const[loading,setLoading]=useState(false);const[err,setErr]=useState('');
+  const loadSc=s=>{setQueue(s.queue);setWait(s.wait);setHour(s.hour);setNps(s.nps);setNpsLow(s.npsLow);setVisitas(s.visitas);setDias(s.dias);setShowP(true);setSugs(null)};
+  const loadT=t=>{setQueue(t.queue_name);setBranch(t.branch_name||'');setWait(Math.round(t.wait_time_seconds/60));setHour(t.hour||10);setEmail(t.turn_email||'');setSugs(null)};
+  const go=async()=>{setLoading(true);setErr('');setSugs(null);try{const d=await api.suggest({queue_name:queue,branch_name:branch,wait_time_seconds:wait*60,hour,turn_email:email||null,visitas,nps:nps?parseFloat(nps):null,nps_low_count:npsLow,dias_desde_ultima_visita:dias?parseInt(dias):null,company_name:ctx.company_name,sector:ctx.sector,process_descriptions:ctx.process_descriptions,espera_p75:csv?.espera_p75_min||null,espera_p90:csv?.espera_p90_min||null});setSugs(d.suggestions)}catch(e){setErr(e.message)}finally{setLoading(false)}};
+  return<div>
+    {!csv&&<div className="card" style={{marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color:'#374151',marginBottom:10}}>Escenarios de demo — click para probar</div>
+      <div className="sc-g">{SCENARIOS.map((s,i)=><div key={i} className="sc-c" onClick={()=>loadSc(s)}><div className="sc-t">{s.title}</div><div className="sc-d">{s.desc}</div></div>)}</div></div>}
+    {samples.length>0&&<div className="card" style={{marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color:'#374151',marginBottom:10}}>Turnos del dataset — click para simular</div>
+      <div className="tw"><table><thead><tr><th>Cola</th><th>Sucursal</th><th>Espera</th></tr></thead>
+        <tbody>{samples.map((t,i)=><tr key={i} style={{cursor:'pointer'}} onClick={()=>loadT(t)}><td style={{fontWeight:500}}>{t.queue_name}</td><td style={{fontSize:11,color:'#64748b'}}>{t.branch_name||'—'}</td><td>{Math.round(t.wait_time_seconds/60)} min</td></tr>)}</tbody></table></div></div>}
+    <div className="sim">
+      <div className="card" style={{position:'sticky',top:16}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Configurar turno</div>
+        <div className="fr"><label>Cola</label>{qs.length?<select value={queue} onChange={e=>{setQueue(e.target.value);setSugs(null)}}>{qs.map(q=><option key={q}>{q}</option>)}</select>:<input placeholder="Ej: Caja, Venta..." value={queue} onChange={e=>{setQueue(e.target.value);setSugs(null)}}/>}</div>
+        {bs.length>0&&<div className="fr"><label>Sucursal</label><select value={branch} onChange={e=>setBranch(e.target.value)}>{bs.map(b=><option key={b}>{b}</option>)}</select></div>}
+        <div className="sl"><div className="sl-h"><span>Tiempo de espera</span><span className="sl-v">{wait} min</span></div><input type="range" min={0} max={60} value={wait} onChange={e=>{setWait(+e.target.value);setSugs(null)}}/></div>
+        <div className="sl"><div className="sl-h"><span>Hora del dia</span><span className="sl-v">{hour}:00</span></div><input type="range" min={7} max={19} value={hour} onChange={e=>{setHour(+e.target.value);setSugs(null)}}/></div>
+        <div className="tgl" onClick={()=>setShowP(p=>!p)}><span className="tgl-t">Perfil del cliente</span><span className={`tgl-i ${showP?'open':''}`}>▾</span></div>
+        {showP&&<div><div className="fg"><div className="fr"><label>Visitas</label><input type="number" min={0} max={50} value={visitas} onChange={e=>setVisitas(+e.target.value)}/></div><div className="fr"><label>Dias desde ultima visita</label><input type="number" min={0} placeholder="—" value={dias} onChange={e=>setDias(e.target.value)}/></div></div>
+          <div className="fg"><div className="fr"><label>NPS promedio (1-5)</label><input type="number" min={1} max={5} step={0.1} placeholder="—" value={nps} onChange={e=>setNps(e.target.value)}/></div><div className="fr"><label>Veces NPS bajo</label><input type="number" min={0} max={10} value={npsLow} onChange={e=>setNpsLow(+e.target.value)}/></div></div></div>}
+        {err&&<p style={{color:'#dc2626',fontSize:12,marginTop:6}}>{err}</p>}
+        <button className="btn btn-p" style={{width:'100%',marginTop:14}} onClick={go} disabled={loading||!queue}>{loading?<><span className="spin"/> Analizando...</>:'Generar sugerencias'}</button>
+      </div>
+      <div className="console"><div className="console-bar"><span className="dot"/><span style={{fontWeight:600}}>Escritorio del operador</span><span className="tag">{queue}</span><span className="tag">{hour}:00 hs</span>{wait>0&&<span className="tag">Espera: {wait} min</span>}</div>
+        <div className="console-body">
+          {!sugs&&!loading&&<div className="empty"><div className="big">🎯</div>Configura el turno y genera las sugerencias</div>}
+          {loading&&<div className="empty"><span className="spin"/><div style={{marginTop:10}}>Analizando...</div></div>}
+          {sugs&&sugs.length>0&&<div><div style={{fontSize:11,color:'#64748b',marginBottom:12}}>{sugs.length} sugerencia{sugs.length>1?'s':''} para el operador</div>{sugs.map((s,i)=><SugCard key={i} s={s}/>)}</div>}
+          {sugs&&sugs.length===0&&<div className="empty"><div className="big">✅</div>Sin señales detectadas.</div>}
+        </div></div>
     </div>
-  );
+    <div style={{marginTop:18}}><button className="btn btn-s" onClick={onBack}>← Volver</button></div>
+  </div>
 };
 
-const SuggestionCard = ({ s }) => {
-  const meta = LAYER_META[s.layer] || { label: s.layer, icon: '•' };
-  return (
-    <div className={`suggestion-card ${s.layer}`}>
-      <div className={`s-badge ${s.layer}`}>{meta.icon} {meta.label}</div>
-      <div className="s-label">{s.label}</div>
-      <div className="s-message">{s.message}</div>
-      {s.evidence && s.evidence.filter(Boolean).length > 0 && (
-        <ul className="s-evidence">
-          {s.evidence.filter(Boolean).map((e, i) => <li key={i}>{e}</li>)}
-        </ul>
-      )}
-    </div>
-  );
+const App=()=>{
+  const[step,setStep]=useState(1);const[ctx,setCtx]=useState(null);const[csv,setCsv]=useState(null);
+  const h1=({ctx,csv})=>{setCtx(ctx);setCsv(csv);setStep(csv?2:3)};
+  return<><header className="hdr"><div className="hdr-mark">Numia</div><div className="hdr-sep"/><div className="hdr-sub">Next-Best-Action Simulator</div>
+    {ctx&&<><div className="hdr-sep"/><div className="hdr-sub" style={{opacity:.7}}>{ctx.company_name||ctx.sector}</div></>}</header>
+    <div className="page"><StepBar step={step}/>
+      {step===1&&<Step1 onNext={h1}/>}
+      {step===2&&csv&&<Step2 csv={csv} onNext={()=>setStep(3)} onBack={()=>setStep(1)}/>}
+      {step===3&&ctx&&<Step3 ctx={ctx} csv={csv} onBack={()=>setStep(csv?2:1)}/>}
+    </div><div className="ftr">Powered by <strong>Numia</strong> — The Phygital AI Journeys Orchestrator</div></>
 };
-
-const Spinner = () => <span className="spinner" />;
-
-
-// ── Step 1: Setup ─────────────────────────────────────────────
-
-const Step1 = ({ onNext }) => {
-  const [company, setCompany]   = useState('');
-  const [sector, setSector]     = useState('banca');
-  const [processes, setProcs]   = useState('');
-  const [csvFile, setCsvFile]   = useState(null);
-  const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const fileRef = useRef();
-
-  const handleFile = (f) => {
-    if (f && f.name.endsWith('.csv')) {
-      setCsvFile(f);
-      setUploadError('');
-    } else {
-      setUploadError('Solo se aceptan archivos .csv');
-    }
-  };
-
-  const handleContinue = async () => {
-    setUploading(true);
-    setUploadError('');
-    const ctx = { company_name: company, sector, process_descriptions: processes };
-
-    if (csvFile) {
-      try {
-        const form = new FormData();
-        form.append('file', csvFile);
-        const res = await fetch('/api/upload', { method: 'POST', body: form });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        onNext({ ctx, csvData: data });
-      } catch (e) {
-        setUploadError('Error leyendo el CSV: ' + e.message);
-        setUploading(false);
-      }
-    } else {
-      onNext({ ctx, csvData: null });
-    }
-  };
-
-  return (
-    <div className="card">
-      <div className="card-title">Configurá tu empresa</div>
-      <div className="card-sub">Esta información adapta las sugerencias NBA al contexto de tu operación.</div>
-
-      <div className="form-row">
-        <label>Nombre de la empresa</label>
-        <input type="text" placeholder="Ej: Bancoomeva, Clínica Las Américas..." value={company}
-          onChange={e => setCompany(e.target.value)} />
-      </div>
-
-      <div className="form-row">
-        <label>Sector</label>
-        <div className="sector-grid">
-          {SECTORS.map(s => (
-            <div key={s.id} className={`sector-card ${sector === s.id ? 'sel' : ''}`}
-              onClick={() => setSector(s.id)}>
-              <div className="icon">{s.icon}</div>
-              <div className="name">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="form-row">
-        <label>Describí los procesos clave de tu operación <span style={{fontWeight:400,color:'#94a3b8'}}>(opcional pero mejora las sugerencias)</span></label>
-        <textarea placeholder={PROCESS_PLACEHOLDER} value={processes}
-          onChange={e => setProcs(e.target.value)} rows={5} />
-      </div>
-
-      <div className="form-row">
-        <label>Cargá un archivo de qmovements <span style={{fontWeight:400,color:'#94a3b8'}}>(opcional — para simular con datos reales)</span></label>
-        {csvFile ? (
-          <div className="upload-success">
-            <span>📄</span>
-            <span><strong>{csvFile.name}</strong> — {(csvFile.size / 1024 / 1024).toFixed(1)} MB</span>
-            <button className="btn btn-secondary" style={{marginLeft:'auto',padding:'4px 12px',fontSize:'12px'}}
-              onClick={() => setCsvFile(null)}>Quitar</button>
-          </div>
-        ) : (
-          <div
-            className={`upload-zone ${dragging ? 'active' : ''}`}
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}
-            onClick={() => fileRef.current.click()}
-          >
-            <div className="icon">📂</div>
-            <p>Arrastrá tu CSV acá o <strong>hacé click para buscar</strong></p>
-            <p style={{fontSize:'12px',marginTop:4}}>qmovements_fecha.csv</p>
-          </div>
-        )}
-        <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}}
-          onChange={e => handleFile(e.target.files[0])} />
-        {uploadError && <p style={{color:'#dc2626',fontSize:'13px',marginTop:8}}>{uploadError}</p>}
-      </div>
-
-      <div className="btn-row">
-        <button className="btn btn-primary" onClick={handleContinue} disabled={uploading}>
-          {uploading ? <><Spinner /> &nbsp;Procesando...</> : 'Continuar →'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-
-// ── Step 2: Resumen CSV ───────────────────────────────────────
-
-const Step2 = ({ csvData, ctx, onNext, onBack }) => {
-  const d = csvData;
-  const identifier = d.email_coverage_pct > d.appointment_coverage_pct
-    ? 'Email' : 'Appointment code';
-  const identCov = Math.max(d.email_coverage_pct, d.appointment_coverage_pct);
-
-  return (
-    <div className="card">
-      <div className="card-title">Resumen de datos</div>
-      <div className="card-sub">
-        Se analizaron las llamadas del archivo cargado.
-        Estos datos calibrarán los umbrales del motor NBA.
-      </div>
-
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="val">{d.total_llamadas.toLocaleString()}</div>
-          <div className="lbl">Llamadas en el dataset</div>
-        </div>
-        <div className="stat-card">
-          <div className="val">{d.queues}</div>
-          <div className="lbl">Colas distintas</div>
-        </div>
-        <div className="stat-card">
-          <div className="val">{d.branches}</div>
-          <div className="lbl">Sucursales</div>
-        </div>
-        <div className="stat-card">
-          <div className="val" style={{color: identCov > 50 ? '#4f46e5' : '#d97706'}}>
-            {identCov}%
-          </div>
-          <div className="lbl">Cobertura de {identifier}</div>
-        </div>
-      </div>
-
-      <div style={{background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:10,padding:'12px 16px',marginBottom:24,fontSize:13,color:'#166534'}}>
-        Umbrales calibrados con este dataset — espera larga: <strong>{d.espera_p75_min} min (p75)</strong>, muy larga: <strong>{d.espera_p90_min} min (p90)</strong>
-      </div>
-
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cola</th>
-              <th>Turnos</th>
-              <th>Espera prom.</th>
-              <th>Atención prom.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {d.queue_stats.slice(0, 15).map((q, i) => (
-              <tr key={i}>
-                <td style={{fontWeight:500}}>{q.queue_name}</td>
-                <td>{q.turnos.toLocaleString()}</td>
-                <td>{q.espera_prom_min != null ? `${q.espera_prom_min} min` : '—'}</td>
-                <td>{q.atencion_prom_min != null ? `${q.atencion_prom_min} min` : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="btn-row">
-        <button className="btn btn-secondary" onClick={onBack}>← Volver</button>
-        <button className="btn btn-primary" onClick={onNext}>Ir al simulador →</button>
-      </div>
-    </div>
-  );
-};
-
-
-// ── Step 3: Simulador ─────────────────────────────────────────
-
-const Step3 = ({ ctx, csvData, onBack }) => {
-  const queues = csvData?.queues_list || [];
-
-  const [queue, setQueue]       = useState(queues[0] || '');
-  const [branch, setBranch]     = useState(csvData?.branches_list?.[0] || '');
-  const [waitMin, setWaitMin]   = useState(10);
-  const [hour, setHour]         = useState(10);
-  const [email, setEmail]       = useState('');
-
-  // Perfil del cliente
-  const [showProfile, setShowProfile] = useState(false);
-  const [visitas, setVisitas]   = useState(0);
-  const [nps, setNps]           = useState('');
-  const [npsLow, setNpsLow]     = useState(0);
-  const [diasVisita, setDiasVisita] = useState('');
-
-  const [suggestions, setSuggestions] = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-
-  // Si hay muestra de turnos, permitir seleccionar uno
-  const [selectedSample, setSelectedSample] = useState(null);
-  const samples = csvData?.sample_turns?.slice(0, 20) || [];
-
-  const loadSample = (t) => {
-    setSelectedSample(t.turn_id);
-    setQueue(t.queue_name);
-    setBranch(t.branch_name || '');
-    setWaitMin(Math.round(t.wait_time_seconds / 60));
-    setHour(t.hour || 10);
-    setEmail(t.turn_email || '');
-    setSuggestions(null);
-  };
-
-  const handleGenerate = async () => {
-    if (!queue) { setError('Seleccioná una cola.'); return; }
-    setLoading(true); setError(''); setSuggestions(null);
-    try {
-      const body = {
-        queue_name: queue,
-        branch_name: branch,
-        wait_time_seconds: waitMin * 60,
-        hour,
-        turn_email: email || null,
-        visitas_total: visitas,
-        nps_promedio: nps !== '' ? parseFloat(nps) : null,
-        veces_nps_bajo: npsLow,
-        dias_desde_ultima_visita: diasVisita !== '' ? parseInt(diasVisita) : null,
-        company_name: ctx.company_name,
-        sector: ctx.sector,
-        process_descriptions: ctx.process_descriptions,
-        espera_p75_min: csvData?.espera_p75_min || null,
-        espera_p90_min: csvData?.espera_p90_min || null,
-      };
-      const res = await fetch('/api/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setSuggestions(data.suggestions);
-    } catch (e) {
-      setError('Error: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      {/* Muestra de turnos reales */}
-      {samples.length > 0 && (
-        <div className="card" style={{marginBottom:20}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>
-            Turnos del dataset — hacé click para simular
-          </div>
-          <div style={{overflowX:'auto'}}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Cola</th>
-                  <th>Sucursal</th>
-                  <th>Espera</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {samples.map((t, i) => (
-                  <tr key={i} style={{cursor:'pointer'}}
-                    onClick={() => loadSample(t)}>
-                    <td style={{fontWeight: selectedSample === t.turn_id ? 600 : 400,
-                                color: selectedSample === t.turn_id ? '#4f46e5' : 'inherit'}}>
-                      {t.queue_name}
-                    </td>
-                    <td style={{fontSize:12,color:'#64748b'}}>{t.branch_name || '—'}</td>
-                    <td>{Math.round(t.wait_time_seconds / 60)} min</td>
-                    <td>
-                      {selectedSample === t.turn_id
-                        ? <span style={{color:'#4f46e5',fontSize:12,fontWeight:700}}>✓ Seleccionado</span>
-                        : <span style={{color:'#94a3b8',fontSize:12}}>Usar</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="sim-layout">
-        {/* ── Panel izquierdo: configuración ── */}
-        <div className="card" style={{position:'sticky',top:16}}>
-          <div className="card-title" style={{fontSize:15,marginBottom:16}}>Configurar turno</div>
-
-          <div className="form-row">
-            <label>Cola</label>
-            {queues.length > 0
-              ? <select value={queue} onChange={e => { setQueue(e.target.value); setSuggestions(null); }}>
-                  {queues.map(q => <option key={q} value={q}>{q}</option>)}
-                </select>
-              : <input type="text" placeholder="Ej: Caja, Venta de Productos..." value={queue}
-                  onChange={e => { setQueue(e.target.value); setSuggestions(null); }} />
-            }
-          </div>
-
-          <div className="form-row">
-            <label>Sucursal</label>
-            {csvData?.branches_list?.length > 0
-              ? <select value={branch} onChange={e => setBranch(e.target.value)}>
-                  {csvData.branches_list.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              : <input type="text" placeholder="Ej: Sucursal Centro" value={branch}
-                  onChange={e => setBranch(e.target.value)} />
-            }
-          </div>
-
-          <div className="slider-row">
-            <div className="slider-label">
-              <span>Tiempo de espera</span>
-              <span className="slider-val">{waitMin} min</span>
-            </div>
-            <input type="range" min={0} max={60} value={waitMin}
-              onChange={e => { setWaitMin(Number(e.target.value)); setSuggestions(null); }} />
-          </div>
-
-          <div className="slider-row">
-            <div className="slider-label">
-              <span>Hora del día</span>
-              <span className="slider-val">{hour}:00 hs</span>
-            </div>
-            <input type="range" min={8} max={18} value={hour}
-              onChange={e => { setHour(Number(e.target.value)); setSuggestions(null); }} />
-          </div>
-
-          <div className="form-row">
-            <label>Email del cliente <span style={{fontWeight:400,color:'#94a3b8'}}>(opcional)</span></label>
-            <input type="email" placeholder="cliente@email.com" value={email}
-              onChange={e => setEmail(e.target.value)} />
-          </div>
-
-          {/* Perfil del cliente (colapsable) */}
-          <div style={{borderTop:'1px solid #f1f5f9',paddingTop:14,marginTop:4}}>
-            <div className="toggle-header" onClick={() => setShowProfile(p => !p)}>
-              <span className="toggle-title">Perfil del cliente (historial)</span>
-              <span className={`toggle-icon ${showProfile ? 'open' : ''}`}>▾</span>
-            </div>
-            {showProfile && (
-              <div>
-                <div className="form-grid">
-                  <div className="form-row">
-                    <label>Visitas históricas</label>
-                    <input type="number" min={0} max={50} value={visitas}
-                      onChange={e => setVisitas(Number(e.target.value))} />
-                  </div>
-                  <div className="form-row">
-                    <label>Días desde última visita</label>
-                    <input type="number" min={0} max={365} placeholder="Dejar vacío si no sabe"
-                      value={diasVisita} onChange={e => setDiasVisita(e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-grid">
-                  <div className="form-row">
-                    <label>NPS promedio histórico (1-5)</label>
-                    <input type="number" min={1} max={5} step={0.1} placeholder="Vacío = sin dato"
-                      value={nps} onChange={e => setNps(e.target.value)} />
-                  </div>
-                  <div className="form-row">
-                    <label>Veces con NPS ≤ 2</label>
-                    <input type="number" min={0} max={10} value={npsLow}
-                      onChange={e => setNpsLow(Number(e.target.value))} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {error && <p style={{color:'#dc2626',fontSize:13,marginTop:8}}>{error}</p>}
-
-          <button className="btn btn-primary" style={{width:'100%',marginTop:16}}
-            onClick={handleGenerate} disabled={loading || !queue}>
-            {loading ? <><Spinner /> &nbsp;Generando...</> : 'Generar sugerencias'}
-          </button>
-        </div>
-
-        {/* ── Panel derecho: sugerencias ── */}
-        <div>
-          {!suggestions && !loading && (
-            <div className="empty-state">
-              <div className="big">🎯</div>
-              <div>Configurá el turno y hacé click en<br/><strong>Generar sugerencias</strong></div>
-            </div>
-          )}
-          {loading && (
-            <div className="empty-state">
-              <Spinner />
-              <div style={{marginTop:12}}>Analizando turno...</div>
-            </div>
-          )}
-          {suggestions && suggestions.length > 0 && (
-            <div>
-              <div style={{fontSize:13,color:'#64748b',marginBottom:14}}>
-                {suggestions.length} sugerencia{suggestions.length > 1 ? 's' : ''} para el operador
-              </div>
-              {suggestions.map((s, i) => <SuggestionCard key={i} s={s} />)}
-            </div>
-          )}
-          {suggestions && suggestions.length === 0 && (
-            <div className="empty-state">
-              <div className="big">✅</div>
-              <div>Sin señales específicas detectadas para este turno.</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{marginTop:24}}>
-        <button className="btn btn-secondary" onClick={onBack}>← Volver</button>
-      </div>
-    </div>
-  );
-};
-
-
-// ── App principal ─────────────────────────────────────────────
-
-const App = () => {
-  const [step, setStep]       = useState(1);
-  const [ctx, setCtx]         = useState(null);
-  const [csvData, setCsvData] = useState(null);
-
-  const handleStep1 = ({ ctx, csvData }) => {
-    setCtx(ctx);
-    setCsvData(csvData);
-    setStep(csvData ? 2 : 3);
-  };
-
-  return (
-    <>
-      <header className="header">
-        <div className="header-logo">N</div>
-        <h1>Numia NBA</h1>
-        <span>Next-Best-Action para Operadores</span>
-      </header>
-
-      <div className="page">
-        <StepBar step={step} />
-
-        {step === 1 && <Step1 onNext={handleStep1} />}
-
-        {step === 2 && csvData && (
-          <Step2
-            csvData={csvData}
-            ctx={ctx}
-            onNext={() => setStep(3)}
-            onBack={() => setStep(1)}
-          />
-        )}
-
-        {step === 3 && ctx && (
-          <Step3
-            ctx={ctx}
-            csvData={csvData}
-            onBack={() => setStep(csvData ? 2 : 1)}
-          />
-        )}
-      </div>
-    </>
-  );
-};
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>

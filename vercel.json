@@ -3,7 +3,9 @@
   "builds": [
     { "src": "api/index.py", "use": "@vercel/python" }
   ],
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index.py" }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
