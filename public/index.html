@@ -123,7 +123,7 @@ const Step1=({onNext})=>{
 };
 
 const Step2=({csv:d,onNext,onBack})=><div className="card">
-  <div className="card-t">Resumen del dataset</div><div className="card-s">Umbrales calibrados con tus datos reales.</div>
+  <div className="card-t">Resumen del dataset</div><div className="card-s">Umbrales calibrados con tus datos reales.{d.sampled&&` Archivo de ${d.file_mb} MB (${d.total_rows_original.toLocaleString()} filas) — se analizo una muestra del ${d.sample_pct}% para velocidad.`}</div>
   <div className="stat-g">
     <div className="stat-c"><div className="v">{d.total_llamadas.toLocaleString()}</div><div className="l">Llamadas</div></div>
     <div className="stat-c"><div className="v">{d.queues}</div><div className="l">Colas</div></div>

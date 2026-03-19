@@ -69,8 +69,20 @@ def _pct(data: list[float], p: float) -> float:
 async def upload(file: UploadFile = File(...)):
     """Acepta CSV de cualquier tamaño. Usa pandas para performance."""
     content = await file.read()
+    file_mb = len(content) / (1024 * 1024)
+
+    # Solo leemos las columnas que usamos para no reventar la RAM
+    COLS_NEEDED = [
+        "action_text", "queue_name", "branch_name", "turn_id",
+        "wait_time", "attention_time", "action_time",
+        "turn_email", "appointment_code",
+    ]
+
     try:
-        df = pd.read_csv(io.BytesIO(content), low_memory=False)
+        # Detectar columnas disponibles leyendo solo el header
+        header = pd.read_csv(io.BytesIO(content), nrows=0)
+        usecols = [c for c in COLS_NEEDED if c in header.columns]
+        df = pd.read_csv(io.BytesIO(content), usecols=usecols, low_memory=False)
     except Exception as e:
         raise HTTPException(400, f"Error leyendo CSV: {e}")
 
@@ -78,6 +90,14 @@ async def upload(file: UploadFile = File(...)):
     if not required.issubset(df.columns):
         missing = required - set(df.columns)
         raise HTTPException(400, f"Columnas faltantes: {', '.join(missing)}")
+
+    # Sampleo automático si hay demasiadas filas — mantiene representatividad
+    MAX_ROWS = 200_000
+    total_rows_original = len(df)
+    sampled = False
+    if len(df) > MAX_ROWS:
+        df = df.sample(n=MAX_ROWS, random_state=42)
+        sampled = True
 
     llamadas = df[df["action_text"].isin(LLAMADA)].copy()
     fins = df[df["action_text"].isin(FIN)].copy()
@@ -150,6 +170,10 @@ async def upload(file: UploadFile = File(...)):
 
     return {
         "total_llamadas": n,
+        "total_rows_original": total_rows_original,
+        "sampled": sampled,
+        "sample_pct": round(MAX_ROWS * 100 / total_rows_original, 1) if sampled else 100,
+        "file_mb": round(file_mb, 1),
         "queues": len(queues_list),
         "branches": len(branches_list),
         "email_coverage_pct": email_cov,
