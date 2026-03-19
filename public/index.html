@@ -105,8 +105,9 @@ const Step1=({onNext})=>{
   const slist=sectors?Object.entries(sectors).map(([id,s])=>({id,...s})):[{id:'banca',label:'Banca',icon:'\uD83C\uDFE6'},{id:'salud',label:'Salud',icon:'\uD83C\uDFE5'},{id:'retail',label:'Retail',icon:'\uD83D\uDECD\uFE0F'},{id:'gobierno',label:'Gobierno',icon:'\uD83C\uDFDB\uFE0F'},{id:'telco',label:'Telco',icon:'\uD83D\uDCE1'},{id:'otro',label:'Otro',icon:'\uD83D\uDCCB'}];
   const ph=sectors?sectors[sec]?.sample_processes||'':'Caja: depositos y pagos\nVenta: cross-sell';
   useEffect(()=>{if(sectors&&sectors[sec])setProc(sectors[sec].sample_processes||'')},[sec]);
+  const[status,setStatus]=useState('');
   const pick=f=>{if(f?.name.endsWith('.csv')){setFile(f);setErr('')}else setErr('Solo .csv')};
-  const go=async()=>{setLoading(true);setErr('');const ctx={company_name:co,sector:sec,process_descriptions:proc};if(file){try{const d=await api.upload(file);onNext({ctx,csv:d})}catch(e){setErr(e.message);setLoading(false)}}else onNext({ctx,csv:null})};
+  const go=async()=>{setLoading(true);setErr('');setStatus('');const ctx={company_name:co,sector:sec,process_descriptions:proc};if(file){try{setStatus('Subiendo archivo ('+((file.size/1024/1024).toFixed(0))+' MB)...');const d=await api.upload(file);setStatus('Procesado en '+d.processing_seconds+'s');onNext({ctx,csv:d})}catch(e){setErr(e.message);setLoading(false);setStatus('')}}else onNext({ctx,csv:null})};
   return<div className="card">
     <div className="card-t">Configura tu empresa</div><div className="card-s">Esta informacion adapta las sugerencias NBA al contexto de tu operacion.</div>
     <div className="fr"><label>Nombre de la empresa</label><input placeholder="Ej: Bancoomeva, Clinica Americas..." value={co} onChange={e=>setCo(e.target.value)}/></div>
@@ -118,7 +119,8 @@ const Step1=({onNext})=>{
         <div style={{fontSize:'24px',marginBottom:'6px'}}>📂</div><div style={{fontSize:'13px',color:'#64748b'}}>Arrastra tu CSV o <strong style={{color:'#4f46e5'}}>hace click</strong></div></div>}
       <input ref={ref} type="file" accept=".csv" hidden onChange={e=>pick(e.target.files[0])}/>
       {err&&<p style={{color:'#dc2626',fontSize:'12px',marginTop:6}}>{err}</p>}</div>
-    <div className="btn-row"><button className="btn btn-p" onClick={go} disabled={loading}>{loading?<><span className="spin"/> Procesando...</>:'Continuar →'}</button></div>
+    {status&&<div style={{background:'#eff6ff',border:'1.5px solid #bfdbfe',borderRadius:8,padding:'10px 14px',fontSize:12,color:'#1e40af',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>{loading&&<span className="spin"/>}{status}</div>}
+    <div className="btn-row"><button className="btn btn-p" onClick={go} disabled={loading}>{loading?'Procesando...':'Continuar →'}</button></div>
   </div>
 };
 

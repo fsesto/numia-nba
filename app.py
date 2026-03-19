@@ -6,12 +6,17 @@ Para deploy en Railway, Render, o cualquier VPS.
 
 import csv
 import io
+import logging
 import os
+import time
 from datetime import datetime
 from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
+log = logging.getLogger("nba")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -68,10 +73,12 @@ def _pct(data: list[float], p: float) -> float:
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
     """Acepta CSV de cualquier tamaño. Usa pandas para performance."""
+    t0 = time.time()
+    log.info("UPLOAD inicio — leyendo archivo...")
     content = await file.read()
     file_mb = len(content) / (1024 * 1024)
+    log.info("UPLOAD archivo recibido: %.1f MB (%.1f seg)", file_mb, time.time() - t0)
 
-    # Solo leemos las columnas que usamos para no reventar la RAM
     COLS_NEEDED = [
         "action_text", "queue_name", "branch_name", "turn_id",
         "wait_time", "attention_time", "action_time",
@@ -79,10 +86,12 @@ async def upload(file: UploadFile = File(...)):
     ]
 
     try:
-        # Detectar columnas disponibles leyendo solo el header
+        t1 = time.time()
         header = pd.read_csv(io.BytesIO(content), nrows=0)
         usecols = [c for c in COLS_NEEDED if c in header.columns]
+        log.info("UPLOAD parseando CSV con %d columnas...", len(usecols))
         df = pd.read_csv(io.BytesIO(content), usecols=usecols, low_memory=False)
+        log.info("UPLOAD CSV parseado: %d filas en %.1f seg", len(df), time.time() - t1)
     except Exception as e:
         raise HTTPException(400, f"Error leyendo CSV: {e}")
 
@@ -91,23 +100,25 @@ async def upload(file: UploadFile = File(...)):
         missing = required - set(df.columns)
         raise HTTPException(400, f"Columnas faltantes: {', '.join(missing)}")
 
-    # Sampleo automático si hay demasiadas filas — mantiene representatividad
     MAX_ROWS = 200_000
     total_rows_original = len(df)
     sampled = False
     if len(df) > MAX_ROWS:
+        log.info("UPLOAD sampleando %d -> %d filas...", len(df), MAX_ROWS)
         df = df.sample(n=MAX_ROWS, random_state=42)
         sampled = True
 
+    t2 = time.time()
     llamadas = df[df["action_text"].isin(LLAMADA)].copy()
     fins = df[df["action_text"].isin(FIN)].copy()
+    log.info("UPLOAD filtrado: %d llamadas, %d finalizaciones (%.1f seg)", len(llamadas), len(fins), time.time() - t2)
 
     if len(llamadas) == 0:
         raise HTTPException(400, "No se encontraron filas de LLAMADA en el CSV.")
 
     n = len(llamadas)
 
-    # Cobertura
+    t3 = time.time()
     email_cov = round(llamadas["turn_email"].notna().sum() * 100 / n, 1) if "turn_email" in llamadas.columns else 0
     appt_cov = 0
     if "appointment_code" in llamadas.columns:
@@ -130,14 +141,13 @@ async def upload(file: UploadFile = File(...)):
             "atencion_prom_min": round(float(a.mean()) / 60, 1) if len(a) else None,
         })
     queue_stats.sort(key=lambda x: x["turnos"], reverse=True)
+    log.info("UPLOAD stats por cola: %d colas (%.1f seg)", len(queue_stats), time.time() - t3)
 
-    # Umbrales
     all_w = llamadas["wait_time"].dropna()
     all_w = all_w[all_w >= 0]
     p75 = round(float(all_w.quantile(0.75)) / 60, 1) if len(all_w) else 16
     p90 = round(float(all_w.quantile(0.90)) / 60, 1) if len(all_w) else 33
 
-    # Distribucion horaria
     hourly = [0] * 24
     if "action_time" in llamadas.columns:
         try:
@@ -185,7 +195,10 @@ async def upload(file: UploadFile = File(...)):
         "sample_turns": sample,
         "queues_list": queues_list,
         "branches_list": branches_list,
+        "processing_seconds": round(time.time() - t0, 1),
     }
+    log.info("UPLOAD completo en %.1f seg — %d llamadas, %d colas, %d sucursales",
+             time.time() - t0, n, len(queues_list), len(branches_list))
 
 
 class SuggestReq(BaseModel):
